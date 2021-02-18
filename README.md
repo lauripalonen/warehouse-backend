@@ -1,1 +1,2 @@
-# warehouse-backend
+# warehouse-backend  
+Backend for a warehouse application
