@@ -21,6 +21,7 @@ dbTools.databaseIsEmpty().then(isEmpty => {
 
 
 app.use(cors())
+app.use(express.static('build'))
 app.use('/api/products', productsRouter)
 
 app.get("/stream", (request, response) => {
