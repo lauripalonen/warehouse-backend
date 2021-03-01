@@ -23,7 +23,7 @@ Run `npm install` on project root to install dependencies.
 Log in to your [MongoDB account](https://www.mongodb.com/cloud) or create a new one. Build a new cluster and as a connection method, choose *"Connect your Application"* and copy the connection string (begins with "mongodb+srv://...").
 
 **Environment variables**  
-Configuration file in /utils/config.js expects a .env file in backend root. Create .env to backend/ and write following four variables to it:
+Configuration file in /utils/config.js expects a .env file in backend root. Create .env to backend/ and write following variables to it:
 ```
 MONGODB_URI=mongodb+srv://<your_credentials>@<db_address>/<collection_name>?retryWrites=true&w=majority
 
