@@ -1,4 +1,4 @@
-# warehouse-backend  
+# Warehouse backend
 Backend for a warehouse application
 
 Running at heroku: https://warehouse-product-service.herokuapp.com/  
