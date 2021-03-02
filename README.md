@@ -5,9 +5,7 @@ Running at heroku: https://warehouse-product-service.herokuapp.com/
 
 Reposity for frontend [here](https://github.com/lauripalonen/warehouse-frontend).  
 
-Utilizes external [API](https://bad-api-assignment.reaktor.com) for data source. Data is then parsed and uploaded to own [MongoDB](https://www.mongodb.com/) database to offer better performance for the client.  
-  
-On client request, data is first offered from the Mongo database, and then updates are checked (using etags) from the slower external API. On update, Server-sent events are utilized for pushing updated data to client.  
+This project utilizes an external [API](https://bad-api-assignment.reaktor.com) for data source. Data is then parsed and uploaded to own [MongoDB](https://www.mongodb.com/) database to offer better performance for the client.
 
 ## Installation  
 **Requirements**  
