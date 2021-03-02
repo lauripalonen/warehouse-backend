@@ -6,8 +6,8 @@ Running at heroku: https://warehouse-product-service.herokuapp.com/
 Reposity for frontend [here](https://github.com/lauripalonen/warehouse-frontend).  
 
 Utilizes external [API](https://bad-api-assignment.reaktor.com) for data source. Data is then parsed and uploaded to own [MongoDB](https://www.mongodb.com/) database to offer better performance for the client.  
-
-On client request, data is first offered from the Mongo database, and then updates are checked from the slower external API. On update, Server-sent events are utilized for pushing updated data to client.  
+  
+On client request, data is first offered from the Mongo database, and then updates are checked (using etags) from the slower external API. On update, Server-sent events are utilized for pushing updated data to client.  
 
 ## Installation  
 **Requirements**  
@@ -31,4 +31,9 @@ PORT=3001
 ```  
 Use the copied connection string for `MONGODB_URI`. `PORT` can also be a port of your choice. **Remember to add .env file to .gitignore!** You don't want your credentials to be displayed on your repository.  
 
+## Backend logics  
+
+On client request, data is first offered from the MongoDB. Possible updates are then checked from the slower external API using If-None-Match headers with corresponding ETags. On update, MongoDB is updated and server-sent event is utilized for updating the client with fresh data.  
+
+![Backend sequence diagram](https://github.com/lauripalonen/warehouse-backend/documentation/backend_sequence_diagram)  
 
