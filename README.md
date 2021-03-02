@@ -34,6 +34,8 @@ Use the copied connection string for `MONGODB_URI`. `PORT` can also be a port of
 ## Backend logics  
 
 On client request, data is first offered from the MongoDB. Possible updates are then checked from the slower external API using If-None-Match headers with corresponding ETags. On update, MongoDB is updated and server-sent event is utilized for updating the client with fresh data.  
+  
+  
 
-![Backend sequence diagram](https://github.com/lauripalonen/warehouse-backend/documentation/backend_sequence_diagram)  
+![Backend sequence diagram](/documentation/backend_sequence_diagram.png)  
 
