@@ -1,13 +1,25 @@
-const mergeProductsAndStocks = (products, stocks) => {
+const mergeProductsAndInventory = (products, inventories) => {
   const merged = products
   merged.forEach(category => {
-    category.data.forEach(product => {
-      const id = product.id
-      product['availability'] = stocks[id]
+    category.catalog.forEach(product => {
+      const inventory = inventories.find(({ manufacturer }) =>
+        manufacturer === product.manufacturer)
+      product['availability'] = inventory.stock[product.id]
     })
   })
 
   return merged
 }
 
-module.exports = { mergeProductsAndStocks }
+const mergeManufacturerData = (currentManufacturers, storedInventories) => {
+  const manufacturers = currentManufacturers.map(manufacturer => {
+    const storedInventory = storedInventories.find(inventory =>
+      inventory.manufacturer === manufacturer)
+
+    return storedInventory ? storedInventory : manufacturer
+  })
+
+  return manufacturers
+}
+
+module.exports = { mergeProductsAndInventory, mergeManufacturerData }

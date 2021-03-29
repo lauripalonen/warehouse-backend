@@ -1,7 +1,7 @@
 const parseManufacturers = (products) => {
   const manufacturers = new Set()
   products.forEach(category => {
-    category.data.forEach(product => {
+    category.catalog.forEach(product => {
       manufacturers.add(product.manufacturer)
     })
   })
@@ -9,30 +9,20 @@ const parseManufacturers = (products) => {
   return Array.from(manufacturers)
 }
 
-const parseStockValues = (inventoryData) => {
-  const availabilities = {}
-  inventoryData.forEach(manufacturer => {
-    manufacturer.data.forEach(product => {
-      const id = product.id.toLowerCase()
-      const inStockValue = product.DATAPAYLOAD
-        .match(/(?<=<INSTOCKVALUE>)([a-z0-9]+)(?=<\/INSTOCKVALUE>)/gmi)[0]
+const parseStock = (response) => {
+  const stocks = {}
+  response.forEach(stock => {
+    const id = stock.id.toLowerCase()
+    const stockValue = stock.DATAPAYLOAD
+      .match(/(?<=<INSTOCKVALUE>)([a-z0-9]+)(?=<\/INSTOCKVALUE>)/gmi)[0]
 
-      availabilities[id] = inStockValue
-    })
+    stocks[id] = stockValue
   })
 
-  return availabilities
-}
-
-const parseETags = (products, manufacturers) => {
-  const etags = []
-  products.forEach(product => etags.push({ target: 'product', name: product.category, etag: product.etag }))
-  manufacturers.forEach(manufacturer => etags.push({ target: 'manufacturer', name: manufacturer.manufacturer, etag: manufacturer.etag }))
-  return etags
+  return stocks
 }
 
 module.exports = {
   parseManufacturers,
-  parseStockValues,
-  parseETags
+  parseStock
 }

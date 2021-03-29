@@ -1,20 +1,18 @@
 const productsRouter = require('express').Router()
-const { Beanie, Facemask, Gloves } = require('../models/product')
+const { Product } = require('../models/product')
 
 productsRouter.get('/', async (request, response) => {
-  const beanies = Beanie.find({})
-  const facemasks = Facemask.find({})
-  const gloves = Gloves.find({})
+  const beanies = await Product.find({ category: 'beanies' })
+  const facemasks = await Product.find({ category: 'facemasks' })
+  const gloves = await Product.find({ category: 'gloves' })
 
-  const products = await Promise.all([beanies, facemasks, gloves])
-
-  const catalog = [
-    { category: 'beanies', products: products[0] },
-    { category: 'facemasks', products: products[1] },
-    { category: 'gloves', products: products[2] }]
+  const products = [
+    { category: 'beanies', catalog: beanies.catalog },
+    { category: 'facemasks', catalog: facemasks.catalog },
+    { category: 'gloves', catalog: gloves.catalog }]
 
   if (products) {
-    response.json(catalog)
+    response.json(products)
   } else {
     response.status(404).end()
   }
@@ -22,19 +20,10 @@ productsRouter.get('/', async (request, response) => {
 
 productsRouter.get('/:category', async (request, response) => {
   const category = request.params.category
-  var Target = ''
-  switch (category) {
-    case ('beanies'): Target = Beanie; break
-    case ('facemasks'): Target = Facemask; break
-    case ('gloves'): Target = Gloves; break
-    default: return
-  }
 
-  if (Target === '') {
-    response.status(404).end()
-  }
+  const product = await Product.findOne({ category: category })
+  const products = { category: product.category, catalog: product.catalog }
 
-  const products = await Target.find({})
   if (products) {
     response.json(products)
   } else {

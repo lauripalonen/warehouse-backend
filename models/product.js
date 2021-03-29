@@ -1,24 +1,21 @@
 const mongoose = require('mongoose')
 mongoose.set('useFindAndModify', false)
 
-const productSchema = new mongoose.Schema({
-  _id: String,
-  type: String,
+const itemSchema = new mongoose.Schema({
+  id: String,
   name: String,
   color: [String],
   price: Number,
   manufacturer: String,
   availability: String
-}, )
+}, {_id: false})
 
-productSchema.set('toJSON', {
-  transform: (document, returnedObject) => {
-    delete returnedObject.__v
-  }
+const productSchema = new mongoose.Schema({
+  etag: String,
+  category: String,
+  catalog: [itemSchema]
 })
 
-const Beanie = mongoose.model('Beanie', productSchema)
-const Facemask = mongoose.model('Facemask', productSchema)
-const Gloves = mongoose.model('Gloves', productSchema)
+const Product = mongoose.model('Products', productSchema)
 
-module.exports = { Beanie, Facemask, Gloves }
+module.exports = { Product }

@@ -1,40 +1,61 @@
 const axios = require('axios')
+const parser = require('../utils/parser')
+
 const baseUrl = 'https://bad-api-assignment.reaktor.com/v2/availability'
 
 const validResponse = (response) => response.data.response != '[]'
-const unModified = (response, etag) => etag === response.headers['etag']
+const requestOptions = (etag) => ({
+  headers: { 'If-None-Match': etag ? etag : '' },
+  validateStatus: (status) => (status === 304 || status === 200)
+})
 
 const getInventory = async (manufacturer, etag) => {
-  if (etag === undefined) {
-    etag = ''
-  }
-
   for (var attempts = 0; attempts < 10; attempts++) {
-    const response = await axios.get(`${baseUrl}/${manufacturer}`, {
-      headers: { 'If-None-Match': etag },
-      validateStatus: (status) => { return status === 304 || status === 200 }
-    })
+    const response = await axios.get(`${baseUrl}/${manufacturer}`, requestOptions(etag))
 
     if (validResponse(response)) {
-      const data = unModified(response, etag) ? '' : response.data.response
-      return {
+      const modified = response.status === 200
+      const stock = modified ? parser.parseStock(response.data.response) : []
+
+      const inventoryData = {
+        modified: modified,
         manufacturer: manufacturer,
-        data: data,
+        stock: stock,
         etag: response.headers['etag']
       }
+
+      return inventoryData
     }
+
+    console.log(`Attempt ${attempts + 1} failed for resource "${manufacturer}", retrying...`)
   }
 
   throw new Error(`Failed to fetch ${manufacturer} availability data after 10 attempts`)
 }
 
-const getAll = async (manufacturers) => {
-  const response = await Promise.all(
-    manufacturers.map(manufacturer => getInventory(manufacturer)))
+const getUpdates = async (manufacturers) => {
+  const inventoryData = await getBatch(manufacturers)
+
+  const updates = inventoryData.map(inventory => {
+    const storedInventory = manufacturers.find(
+      ({ manufacturer }) => manufacturer === inventory.manufacturer)
+
+    return inventory.modified ? inventory : storedInventory
+  })
+
+  return updates
+}
+
+const getBatch = async (batch) => {
+  const response = await Promise.all(batch.map(item => {
+    return item.etag ? getInventory(item.manufacturer, item.etag) : getInventory(item)
+  }))
+
   return response
 }
 
 module.exports = {
   getInventory,
-  getAll
+  getUpdates,
+  getBatch
 }
