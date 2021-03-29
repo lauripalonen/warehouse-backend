@@ -1,5 +1,7 @@
-const { Beanie, Facemask, Gloves } = require('../models/product')
-const Etag = require('../models/etag')
+const mongoose = require('mongoose')
+
+const { Product } = require('../models/product')
+const { Inventory } = require('../models/inventory')
 
 const productService = require('../services/products')
 const inventoryService = require('../services/inventory')
@@ -7,83 +9,170 @@ const inventoryService = require('../services/inventory')
 const parser = require('../utils/parser')
 const merger = require('../utils/merger')
 
-const initDatabase = async () => {
-  const categories = ['beanies', 'facemasks', 'gloves']
-  const products = await productService.getAll(categories)
-  const manufacturers = parser.parseManufacturers(products)
-  const rawInventoryData = await inventoryService.getAll(manufacturers)
-  const stockValues = parser.parseStockValues(rawInventoryData)
+const getDatabase = async () => {
+  const products = await Product.find({})
+  const inventories = await Inventory.find({})
 
-  const fullProductData = merger.mergeProductsAndStocks(products, stockValues)
-  const eTags = parser.parseETags(products, rawInventoryData)
+  const database = {
+    storedProducts: products,
+    storedInventories: inventories
+  }
 
-  const saved = await saveToDatabase(fullProductData, eTags)
-  return saved
+  const fullyInitialized = products.length > 0 && inventories.length > 0
+
+  return fullyInitialized ? database : null
 }
 
-const saveToDatabase = async (products, etags) => {
-  const beanies = products.find(product => product.category === 'beanies').data
-  const facemasks = products.find(product => product.category === 'facemasks').data
-  const gloves = products.find(product => product.category === 'gloves').data
+const initDatabase = async () => {
+  console.log('Initializing database')
+  dropDatabase()
 
-  const result = await Promise.all([
-    Beanie.insertMany(beanies),
-    Facemask.insertMany(facemasks),
-    Gloves.insertMany(gloves),
-    Etag.insertMany(etags)
-  ])
+  const productCategories = ['beanies', 'facemasks', 'gloves']
+  const productData = await productService.getBatch(productCategories)
 
-  return {
-    beanies: result[0],
-    facemasks: result[1],
-    gloves: result[2],
-    etags: result[4]
+  const manufacturers = parser.parseManufacturers(productData)
+  const inventoryData = await inventoryService.getBatch(manufacturers)
+
+  const fullProductData = merger.mergeProductsAndInventory(productData, inventoryData)
+
+  const Products = fullProductData.map(product => new Product(product))
+  const Inventories = inventoryData.map(inventory => new Inventory(inventory))
+
+  try {
+    await Product.insertMany(Products)
+    await Inventory.insertMany(Inventories)
+    console.log('database initialization successful')
+  } catch (error) {
+    console.log('database initialization failed: ', error)
   }
 }
 
-const databaseIsEmpty = async () => {
-  const result = await Etag.find({})
-  return result.length === 0
+const dropDatabase = async () => {
+  try {
+    await mongoose.connection.dropDatabase()
+    console.log('database dropped')
+  } catch (error) {
+    console.log('unable to drop database: ', error)
+  }
 }
 
-const checkForUpdates = async () => {
-  const etags = await Etag.find({})
-  var result = await Promise.all(etags.map(async etag => {
-    const target = etag.target
-    const tag = etag.etag
-    const name = etag.name
+const getUpdates = async () => {
+  console.log('Getting database updates')
+  const database = await getDatabase()
 
-    if (target === 'product') {
-      const products = await productService.getProducts(name, tag)
-      if (products.data.length > 0) {
-        return true
-      }
+  if (!database) {
+    return null
+  }
+
+  const storedProducts = database.storedProducts
+  const storedInventories = database.storedInventories
+
+  const productData = await productService.getUpdates(storedProducts)
+  const currentManufacturers = parser.parseManufacturers(productData)
+
+  const manufacturers = merger.mergeManufacturerData(currentManufacturers, storedInventories)
+  const inventoryData = await inventoryService.getUpdates(manufacturers)
+
+  await dropObsoleteManufacturers(currentManufacturers)
+
+  if (!isModified(productData) && !isModified(inventoryData)) {
+    console.log('no updates!')
+    return null
+  }
+
+  const fullProductData = merger.mergeProductsAndInventory(productData, inventoryData)
+
+  if (isModified(inventoryData)) {
+    await saveInventoryUpdates(storedInventories, inventoryData)
+    const updatedProducts = await saveProductUpdates(storedProducts, fullProductData)
+    return updatedProducts
+  } else if (isModified(fullProductData)) {
+    const modifiedProducts = fullProductData.filter(({ modified }) => modified === true)
+    const updatedProducts = await saveProductUpdates(storedProducts, modifiedProducts)
+    return updatedProducts
+  } else {
+    return null
+  }
+}
+
+const saveInventoryUpdates = async (storedInventories, inventoryData) => {
+  const modifiedInventories = inventoryData.filter(({ modified }) => modified === true)
+
+  const inventories = modifiedInventories.map(async inventory => {
+    const storedInventory = storedInventories.find(({ manufacturer }) =>
+      manufacturer === inventory.manufacturer)
+
+    if (storedInventory) {
+      return await updateStoredInventory(storedInventory, inventory)
+    } else {
+      return await saveNewInventory(inventory)
     }
+  })
 
-    if (target === 'manufacturer') {
-      const rawInventoryData = await inventoryService.getInventory(name, tag)
-      if (rawInventoryData.data.length > 0) {
-        return true
-      }
+  const response = await Promise.all(inventories)
+
+  return response
+}
+
+const saveProductUpdates = async (storedProducts, mergedProducts) => {
+  const products = await mergedProducts.map(async product => {
+    const stored = storedProducts.find(({ category }) =>
+      category === product.category)
+
+    if (stored) {
+      return await updateStoredProducts(stored, product)
+    } else {
+      return await saveNewProducts(product)
     }
-  }))
+  })
 
-  const updates = result.includes(true)
-
-  return updates
+  const response = Promise.all(products)
+  return response
 }
 
-const updateDataBase = async (connection) => {
-  await connection.dropDatabase()
-  const initialized = await initDatabase()
-  return initialized
+const updateStoredProducts = async (storedProducts, modifiedProducts) => {
+  const newCatalog = modifiedProducts.catalog
+
+  storedProducts.catalog = []
+  storedProducts.catalog = newCatalog
+  storedProducts.etag = modifiedProducts.etag
+
+  return await storedProducts.save()
 }
 
+const updateStoredInventory = async (storedInventory, modifiedInventory) => {
+  storedInventory.stock = []
+  storedInventory.stock = modifiedInventory.stock
+  storedInventory.etag = modifiedInventory.etag
 
+  return await storedInventory.save()
+}
+
+const saveNewProducts = async (product) => {
+  return await (new Product(product)).save()
+}
+
+const saveNewInventory = async (inventory) => {
+  return await (new Inventory(inventory)).save()
+}
+
+const dropObsoleteManufacturers = async (manufacturers) => {
+  try {
+    await Inventory.deleteMany({ manufacturer: { $nin: manufacturers } })
+  } catch (error) {
+    console.log('Failed to remove obsolete manufacturers: ', error)
+  }
+}
+
+const isModified = (data) => {
+  const modificationData = data.map(item => item.modified)
+  const modified = modificationData.includes(true)
+
+  return modified
+}
 
 module.exports = {
   initDatabase,
-  databaseIsEmpty,
-  checkForUpdates,
-  updateDataBase
+  getDatabase,
+  getUpdates,
 }
