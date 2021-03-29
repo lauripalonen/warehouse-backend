@@ -3,52 +3,26 @@ const express = require('express')
 const cors = require('cors')
 const mongoose = require('mongoose')
 const productsRouter = require('./controllers/products')
+const streamRouter = require('./controllers/stream')
 const dbTools = require('./utils/databaseTools')
 
 const app = express()
 
-mongoose.connect(config.MONGODB_URI,
-  { useNewUrlParser: true, useUnifiedTopology: true })
-  .then((result) => {
-    console.log('connected to MongoDB!')
-    return result
-  })
-  .catch((error) => { console.log('error connecting to MongoDB: ', error.message) })
-
-dbTools.databaseIsEmpty().then(isEmpty => {
-  isEmpty ? dbTools.initDatabase() : console.log('server is already initialized')
+mongoose.connect(config.MONGODB_URI, {
+  useNewUrlParser: true, useUnifiedTopology: true
+}).then(
+  console.log('connected to MongoDB!')
+).catch(error => {
+  console.log('connection error: ', error.message)
 })
 
+dbTools.getDatabase().then(database => {
+  database ? dbTools.getUpdates() : dbTools.initDatabase()
+})
 
 app.use(cors())
 app.use(express.static('build'))
 app.use('/api/products', productsRouter)
-
-app.get("/stream", (request, response) => {
-  response.set({
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
-  })
-
-  dbTools.checkForUpdates().then(updates => {
-    if (updates) {
-      console.log('Sending update to client')
-      dbTools.updateDataBase(mongoose.connection.db).then(result => {
-        const catalog = {
-          category: 'beanies', products: result.beanies,
-          category: 'facemasks', products: result.facemasks,
-          category: 'gloves', prodocuts: result.gloves
-        }
-        response.json(catalog)
-      }
-      )
-    }
-  })
-
-  request.on("close", (err) => {
-    response.end()
-  })
-})
+app.use('/api/stream', streamRouter)
 
 module.exports = app
